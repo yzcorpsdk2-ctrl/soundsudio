@@ -3,152 +3,228 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>音乐播放器 - 调试版</title>
+<title>音乐播放器</title>
 <style>
-  /* 原有样式保持不变 */
-  :root{ --bg:#0b0e14; --panel:#12161f; --text:#e6e9ef; --muted:#8b93a7; --accent:#5b7cfa; --accent2:#a855f7; }
+  :root{
+    --bg:#0b0e14; --panel:#12161f; --text:#e6e9ef; --muted:#8b93a7;
+    --accent:#5b7cfa; --accent2:#a855f7;
+  }
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); min-height:100vh; padding:24px; display:flex; justify-content:center; }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:radial-gradient(1200px 600px at 20% -10%, #1b2440 0%, transparent 60%),
+               radial-gradient(1000px 500px at 100% 0%, #2a1b3d 0%, transparent 55%), var(--bg);
+    color:var(--text); min-height:100vh; padding:24px;
+    display:flex; justify-content:center; -webkit-font-smoothing:antialiased;
+  }
   .app{ width:100%; max-width:1020px; height:calc(100vh - 48px); min-height:560px; display:grid; grid-template-columns:370px 1fr; gap:20px; }
-  .player{ background:linear-gradient(165deg,#1b2233 0%, #12161f 65%); border:1px solid rgba(255,255,255,.07); border-radius:26px; padding:30px 26px; display:flex; flex-direction:column; align-items:center; gap:18px; overflow:hidden; }
-  .disc{ width:172px; height:172px; border-radius:50%; background:repeating-radial-gradient(circle at 50% 50%, #242c40 0 2px, #1a2030 2px 5px); display:grid; place-items:center; }
-  .disc-label{ width:66px; height:66px; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:grid; place-items:center; font-size:24px; color:#fff; }
-  .track-title{ font-size:19px; font-weight:600; text-align:center; }
-  .progress-wrap{ width:100%; display:flex; align-items:center; gap:10px; font-size:11.5px; color:var(--muted); }
+  
+  /* 左侧播放器 */
+  .player{ background:linear-gradient(165deg,#1b2233 0%, #12161f 65%); border:1px solid rgba(255,255,255,.07); border-radius:26px; padding:30px 26px; display:flex; flex-direction:column; align-items:center; gap:18px; box-shadow:0 24px 60px rgba(0,0,0,.45); }
+  .disc{ position:relative; width:172px; height:172px; border-radius:50%; background:repeating-radial-gradient(circle at 50% 50%, #242c40 0 2px, #1a2030 2px 5px); display:grid; place-items:center; box-shadow:inset 0 0 0 1px rgba(255,255,255,.06), 0 18px 45px rgba(0,0,0,.55); }
+  .disc::before{ content:''; position:absolute; inset:0; border-radius:50%; background:radial-gradient(circle at 32% 26%, rgba(255,255,255,.16), transparent 46%); }
+  .disc-label{ width:66px; height:66px; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:grid; place-items:center; font-size:24px; color:#fff; box-shadow:0 6px 20px rgba(91,124,250,.55); z-index:1; }
+  .disc.spinning{animation:spin 14s linear infinite;}
+  .disc.spinning .disc-label{animation:spin 14s linear infinite reverse;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .track-title{ font-size:19px; font-weight:600; text-align:center; line-height:1.35; }
+  .track-sub{ font-size:12.5px; color:var(--muted); text-align:center; }
+
+  .progress-wrap{ width:100%; display:flex; align-items:center; gap:10px; font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums; }
   input[type=range]{ -webkit-appearance:none; background:transparent; cursor:pointer; height:16px; flex:1; }
   input[type=range]::-webkit-slider-runnable-track{ height:5px; border-radius:4px; background:rgba(255,255,255,.12); }
-  .controls{display:flex; align-items:center; gap:14px;}
-  .controls button{ background:none; border:none; color:var(--text); font-size:19px; width:42px; height:42px; border-radius:50%; cursor:pointer; }
-  .controls button.main{ width:60px; height:60px; font-size:23px; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff;}
+  #progress::-webkit-slider-runnable-track{ background:linear-gradient(to right, var(--accent) var(--p,0%), rgba(255,255,255,.12) var(--p,0%)); }
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:13px; height:13px; border-radius:50%; background:#fff; margin-top:-4px; box-shadow:0 0 0 4px rgba(91,124,250,.22); }
+
+  .controls{ display:flex; align-items:center; gap:14px; margin-top:2px; }
+  .controls button{ background:none; border:none; color:var(--text); font-size:19px; width:42px; height:42px; border-radius:50%; cursor:pointer; opacity:.8; transition:0.15s; }
+  .controls button:hover{ background:rgba(255,255,255,.08); opacity:1; }
+  .controls button.main{ width:60px; height:60px; font-size:23px; background:linear-gradient(135deg,var(--accent),var(--accent2)); box-shadow:0 8px 26px rgba(91,124,250,.42); opacity:1; }
+
+  /* 右侧列表 */
   .list-panel{ background:var(--panel); border:1px solid rgba(255,255,255,.07); border-radius:26px; display:flex; flex-direction:column; overflow:hidden; }
-  .list-header{ padding:22px; border-bottom:1px solid rgba(255,255,255,.06); display:flex; flex-direction:column; gap:10px;}
+  .list-header{ padding:22px; border-bottom:1px solid rgba(255,255,255,.06); display:flex; justify-content:space-between; align-items:center; }
   .playlist{ list-style:none; overflow-y:auto; flex:1; padding:10px 12px; }
-  .track{ display:flex; align-items:center; gap:13px; padding:9px 12px; border-radius:13px; cursor:pointer; }
-  .track:hover{background:rgba(255,255,255,.05);}
-  .track.active{background:rgba(91,124,250,.15);}
-  .thumb{ width:42px; height:42px; border-radius:11px; display:grid; place-items:center; font-size:12px; font-weight:700; background:#2a3450; }
-  .info{min-width:0; flex:1;}
-  .name{font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .path{font-size:11px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .debug-box { padding: 15px; background: #1a2235; border-radius: 10px; font-size: 13px; color: #ffb8b8; word-break: break-all; margin-bottom: 10px;}
-  .debug-box a { color: #9fb4ff; text-decoration: underline; }
+  .track{ display:flex; align-items:center; gap:13px; padding:12px; border-radius:13px; cursor:pointer; transition:0.15s; }
+  .track:hover{ background:rgba(255,255,255,.05); }
+  .track.active{ background:rgba(91,124,250,.15); }
+  .track.active .name{ color:#9fb4ff; }
+  .thumb{ width:42px; height:42px; border-radius:11px; display:grid; place-items:center; font-size:12px; font-weight:700; background:#2a3450; color:#cdd6ff; }
+  .track.active .thumb{ background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; }
+  .info{ flex:1; min-width:0; }
+  .name{ font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .path{ font-size:11px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px; }
+  
+  @media (max-width:780px){ .app{ grid-template-columns:1fr; height:auto; } }
 </style>
 </head>
 <body>
+
 <div class="app">
   <section class="player">
-    <div class="disc"><div class="disc-label">♪</div></div>
-    <div style="width:100%; text-align:center;">
-      <div class="track-title" id="trackTitle">未选择曲目</div>
+    <div class="disc" id="disc"><div class="disc-label">♪</div></div>
+    <div style="width:100%">
+      <div class="track-title" id="trackTitle">JVKE - her</div>
+      <div class="track-sub" id="trackSub">点击列表开始播放</div>
     </div>
     <div class="progress-wrap">
       <span id="curTime">0:00</span>
-      <input type="range" id="progress" min="0" max="1000" value="0" disabled>
+      <input type="range" id="progress" min="0" max="1000" step="1" value="0">
       <span id="durTime">0:00</span>
     </div>
     <div class="controls">
-      <button id="prevBtn">⏮</button>
-      <button id="playBtn" class="main">▶</button>
-      <button id="nextBtn">⏭</button>
+      <button id="prevBtn" title="上一首">⏮</button>
+      <button id="playBtn" class="main" title="播放 / 暂停">▶</button>
+      <button id="nextBtn" title="下一首">⏭</button>
     </div>
   </section>
 
   <section class="list-panel">
     <div class="list-header">
-      <h2>播放列表 <span id="count"></span></h2>
-      <!-- 调试面板 -->
-      <div class="debug-box" id="debugBox">
-        正在测试音频链接状态...
-      </div>
-      <div style="font-size:12px; color:#8b93a7;">
-        当前网页地址：<span id="currentUrl"></span>
-      </div>
+      <h2>播放列表 <span id="count">（1）</span></h2>
     </div>
-    <ul class="playlist" id="playlist"></ul>
+    <ul class="playlist" id="playlist">
+      <!-- 列表由 JS 生成 -->
+    </ul>
   </section>
 </div>
 
-<!-- 注意这里，我直接写死了文件名 -->
-<audio id="audio" src="JVKE-her.mp3.mp3" preload="metadata"></audio>
+<audio id="audio" preload="metadata"></audio>
 
 <script>
-// --- 核心配置 ---
-// 注意：根据你的截图，文件名确认为 JVKE-her.mp3.mp3
-const TARGET_FILE = 'JVKE-her.mp3.mp3'; 
+/* =========================================================
+   🎵 配置你的歌曲列表（这绝对有效）
+   ========================================================= */
+const audioList = [
+  {
+    name: 'JVKE - her',
+    path: 'JVKE-her.mp3',
+    // 直接使用你提供的绝对 URL
+    url: 'https://yzcorpsdk2-ctrl.github.io/soundsudio/JVKE-her.mp3'
+  }
+];
 
 const audio = document.getElementById('audio');
 const elPlay = document.getElementById('playBtn');
 const elProg = document.getElementById('progress');
 const elCur = document.getElementById('curTime');
 const elDur = document.getElementById('durTime');
+const elTitle = document.getElementById('trackTitle');
+const elSub = document.getElementById('trackSub');
+const elDisc = document.getElementById('disc');
 const elList = document.getElementById('playlist');
-const elDebug = document.getElementById('debugBox');
-const elCurrentUrl = document.getElementById('currentUrl');
 
-// 显示当前网页地址
-elCurrentUrl.textContent = window.location.href;
+let currentIndex = -1;
 
-// 1. 渲染列表
+// 渲染列表
 function renderList() {
-  elList.innerHTML = `
-    <li class="track active">
+  elList.innerHTML = audioList.map((song, index) => `
+    <li class="track" data-index="${index}">
       <div class="thumb">MP3</div>
       <div class="info">
-        <div class="name">JVKE-her</div>
-        <div class="path">${TARGET_FILE}</div>
+        <div class="name">${song.name}</div>
+        <div class="path">${song.path}</div>
       </div>
     </li>
-  `;
+  `).join('');
 }
-renderList();
 
-// 2. 调试链接测试：主动 fetch 一下看能不能拿到文件
-elDebug.innerHTML = `正在检测文件是否存在...`;
-fetch(TARGET_FILE, { method: 'HEAD' })
-  .then(res => {
-    if (res.ok) {
-      elDebug.innerHTML = `✅ 音频文件请求成功！<br>如果还是没声音，可能是格式问题或浏览器拦截。<br><a href="${TARGET_FILE}" target="_blank">点我直接在浏览器打开音频测试</a>`;
-      elDebug.style.color = '#a3e6a3';
-    } else {
-      elDebug.innerHTML = `❌ 找不到文件！请检查文件名是否绝对一致。<br>服务器返回状态码: ${res.status}`;
-    }
-  })
-  .catch(err => {
-    elDebug.innerHTML = `❌ 请求发生网络错误：${err.message}`;
+// 播放指定歌曲
+function playSong(index) {
+  if (index < 0 || index >= audioList.length) return;
+  const song = audioList[index];
+  currentIndex = index;
+
+  // 更新 UI
+  elTitle.textContent = song.name;
+  elSub.textContent = song.path;
+  document.title = song.name + ' - 音乐播放器';
+  
+  // 列表高亮
+  document.querySelectorAll('.track').forEach(el => el.classList.remove('active'));
+  document.querySelector(`.track[data-index="${index}"]`)?.classList.add('active');
+
+  // 播放逻辑
+  audio.src = song.url;
+  audio.play().catch(err => {
+    console.error(err);
+    alert('播放失败！可能是浏览器安全策略拦截。请尝试在浏览器中直接打开：' + song.url);
   });
-
-// 3. 播放控制逻辑
-function togglePlay() {
-  if (audio.paused) {
-    audio.play().catch(e => {
-      alert('播放失败！原因：' + e.message + '\n这通常是因为文件不存在或浏览器不支持该格式。');
-    });
-  } else {
-    audio.pause();
-  }
 }
 
-elPlay.addEventListener('click', togglePlay);
-
-audio.addEventListener('play', () => { elPlay.textContent = '⏸'; });
-audio.addEventListener('pause', () => { elPlay.textContent = '▶'; });
-audio.addEventListener('timeupdate', () => {
-  if (audio.duration) {
-    elCur.textContent = Math.floor(audio.currentTime / 60) + ':' + String(Math.floor(audio.currentTime % 60)).padStart(2,'0');
-    elProg.value = (audio.currentTime / audio.duration) * 1000;
+// 事件监听
+elList.addEventListener('click', (e) => {
+  const li = e.target.closest('.track');
+  if (!li) return;
+  const index = parseInt(li.dataset.index);
+  
+  if (index === currentIndex) {
+    if (audio.paused) audio.play();
+    else audio.pause();
+  } else {
+    playSong(index);
   }
 });
-audio.addEventListener('loadedmetadata', () => {
-  elDur.textContent = Math.floor(audio.duration / 60) + ':' + String(Math.floor(audio.duration % 60)).padStart(2,'0');
-  elProg.disabled = false;
-});
-audio.addEventListener('error', () => {
-  alert('HTML5 Audio 报错！文件可能损坏、或浏览器不支持。');
+
+elPlay.addEventListener('click', () => {
+  if (currentIndex === -1) {
+    playSong(0);
+  } else {
+    if (audio.paused) audio.play();
+    else audio.pause();
+  }
 });
 
-elProg.addEventListener('input', () => {
-  if (audio.duration) audio.currentTime = (elProg.value / 1000) * audio.duration;
+document.getElementById('prevBtn').addEventListener('click', () => playSong(0));
+document.getElementById('nextBtn').addEventListener('click', () => playSong(0));
+
+// 音频事件同步 UI
+audio.addEventListener('play', () => {
+  elPlay.textContent = '⏸';
+  elDisc.classList.add('spinning');
 });
+
+audio.addEventListener('pause', () => {
+  elPlay.textContent = '▶';
+  elDisc.classList.remove('spinning');
+});
+
+audio.addEventListener('loadedmetadata', () => {
+  elDur.textContent = fmtTime(audio.duration);
+});
+
+audio.addEventListener('timeupdate', () => {
+  if (!audio.duration) return;
+  const p = audio.currentTime / audio.duration;
+  elProg.value = p * 1000;
+  elProg.style.setProperty('--p', (p * 100) + '%');
+  elCur.textContent = fmtTime(audio.currentTime);
+});
+
+audio.addEventListener('error', () => {
+  alert('音频加载失败，请检查链接是否有效。');
+});
+
+// 进度条拖动
+elProg.addEventListener('input', () => {
+  if (audio.duration) {
+    const p = elProg.value / 1000;
+    elProg.style.setProperty('--p', (p * 100) + '%');
+    audio.currentTime = p * audio.duration;
+  }
+});
+
+// 格式化时间
+function fmtTime(sec) {
+  if (!isFinite(sec) || sec < 0) return '0:00';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+// 初始化
+renderList();
 </script>
 </body>
 </html>
