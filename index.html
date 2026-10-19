@@ -19,7 +19,6 @@
 
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    /* 清新明亮的渐变背景 */
     background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
     background-attachment: fixed;
     color: var(--text-dark);
@@ -39,7 +38,6 @@
     gap: 24px;
   }
 
-  /* 毛玻璃通用样式 */
   .glass-panel {
     background: var(--glass-bg);
     backdrop-filter: blur(16px);
@@ -135,9 +133,40 @@
     overflow: hidden;
   }
 
-  .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
   .list-header h2 { font-size: 18px; font-weight: 700; }
   .list-header span { font-size: 13px; color: var(--text-light); font-weight: normal; }
+
+  /* 标签栏 */
+  .tag-bar {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    scrollbar-width: none; /* Firefox */
+  }
+  .tag-bar::-webkit-scrollbar { display: none; } /* Chrome/Safari */
+  
+  .tag-btn {
+    white-space: nowrap;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid transparent;
+    background: rgba(255,255,255,0.4);
+    color: var(--text-light);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tag-btn:hover { background: rgba(255,255,255,0.8); }
+  .tag-btn.active {
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 4px 10px rgba(99,102,241,0.3);
+  }
 
   .playlist { list-style: none; overflow-y: auto; flex: 1; padding-right: 8px; }
   .playlist::-webkit-scrollbar { width: 6px; }
@@ -171,9 +200,18 @@
   .track-name { font-size: 15px; font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .track-path { font-size: 11px; color: var(--text-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   
-  .playing-indicator { display: none; gap: 3px; align-items: flex-end; height: 14px; }
+  /* 下载按钮 */
+  .download-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 50%;
+    color: var(--text-light); text-decoration: none; font-size: 16px;
+    transition: all 0.2s; opacity: 0.6;
+  }
+  .download-btn:hover { background: rgba(0,0,0,0.05); color: var(--primary); opacity: 1; }
+
+  .playing-indicator { display: none; gap: 3px; align-items: flex-end; height: 14px; margin-right: 8px;}
   .track-item.active .playing-indicator { display: flex; }
-  .track-item.active .playing-indicator i {
+  .playing-indicator i {
     display: block; width: 3px; background: var(--primary); border-radius: 2px;
     animation: eq 1s infinite ease-in-out;
   }
@@ -198,7 +236,7 @@
       border-bottom: 1px solid var(--glass-border);
       z-index: 10;
     }
-    .disc { width: 120px; height: 120px; font-size: 24px; box-shadow: 0 8px 20px rgba(99,102,241,0.2); }
+    .disc { width: 110px; height: 110px; font-size: 24px; box-shadow: 0 8px 20px rgba(99,102,241,0.2); }
     .disc::after { font-size: 30px; }
     .controls { margin-top: 15px; }
     .btn-play { width: 56px; height: 56px; font-size: 20px; }
@@ -206,7 +244,16 @@
 
     .list-panel { flex: 1; background: rgba(255,255,255,0.4); padding: 15px 10px; }
     .list-header { display: none; }
+    
+    .tag-bar {
+      margin-bottom: 10px; padding-bottom: 10px;
+      /* 允许边缘渐变消失效果 */
+      mask-image: linear-gradient(to right, black 85%, transparent 100%);
+      -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+    }
+
     .track-item { padding: 10px; margin-bottom: 4px; }
+    .download-btn { font-size: 18px; opacity: 0.8; }
   }
 </style>
 </head>
@@ -233,12 +280,10 @@
     </div>
 
     <div class="controls">
-      <!-- 播放模式按钮 -->
       <button class="btn-icon active" id="modeBtn" title="列表循环">🔁</button>
       <button class="btn-icon" id="prevBtn">⏮</button>
       <button class="btn-play" id="playBtn">▶</button>
       <button class="btn-icon" id="nextBtn">⏭</button>
-      <!-- 随机模式按钮 -->
       <button class="btn-icon" id="shuffleBtn" title="随机播放">🔀</button>
     </div>
   </div>
@@ -248,8 +293,14 @@
     <div class="list-header">
       <h2>播放列表 <span id="songCount">(0)</span></h2>
     </div>
+    
+    <!-- 标签筛选栏 -->
+    <div class="tag-bar" id="tagBar">
+      <!-- 动态生成标签 -->
+    </div>
+
     <ul class="playlist" id="playlist">
-      <li class="status-msg">正在通过 GitHub API 获取音频...</li>
+      <li class="status-msg">正在读取仓库数据...</li>
     </ul>
   </div>
 
@@ -264,7 +315,7 @@
 const CONFIG = {
   owner: 'yzcorpsdk2-ctrl',     // 你的 GitHub 用户名
   repo: 'soundsudio',           // 你的仓库名
-  branch: 'main'                // 你的分支名 (通常是 main 或 master)
+  branch: 'main'                // 你的分支名
 };
 
 /* =========================================================
@@ -284,18 +335,22 @@ const songTitle = document.getElementById('songTitle');
 const songArtist = document.getElementById('songArtist');
 const playlistEl = document.getElementById('playlist');
 const songCount = document.getElementById('songCount');
+const tagBar = document.getElementById('tagBar');
 
-let songs = [];
-let currentIndex = -1;
+let allSongs = [];        // 所有歌曲
+let currentQueue = [];    // 当前标签下的播放队列
+let currentIndex = -1;    // 在当前队列中的索引
 let isPlaying = false;
 
-// 播放模式：'all' (列表循环), 'one' (单曲循环), 'off' (单次顺序)
-let repeatMode = 'all';
-// 随机模式开关
+let allTags = ['全部'];   // 所有标签
+let activeTag = '全部';   // 当前选中的标签
+
+// 播放模式
+let repeatMode = 'all';   // 'all', 'one', 'off'
 let isShuffle = false;
 
 /* =========================================================
-   3. 从 GitHub API 自动提取 MP3 文件
+   3. 从 GitHub API 自动提取 MP3 文件并分类
    ========================================================= */
 async function fetchSongs() {
   const url = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/git/trees/${CONFIG.branch}?recursive=1`;
@@ -304,7 +359,6 @@ async function fetchSongs() {
     if (!res.ok) throw new Error(res.status === 403 ? 'API 请求超限，请稍后再试' : '读取失败，请检查仓库信息');
     const data = await res.json();
 
-    // 过滤出所有的 .mp3 文件（不区分大小写）
     const baseUrl = `https://${CONFIG.owner}.github.io/${CONFIG.repo}/`;
     const mp3Files = data.tree.filter(item => 
       item.type === 'blob' && item.path.toLowerCase().endsWith('.mp3')
@@ -315,22 +369,32 @@ async function fetchSongs() {
       return;
     }
 
-    // 组装歌曲数据
-    songs = mp3Files.map(file => {
+    // 组装歌曲数据与标签
+    allSongs = mp3Files.map(file => {
       const fileName = file.path.split('/').pop();
-      // 对路径进行编码，防止包含空格或特殊字符导致无法播放
       const encodedPath = file.path.split('/').map(encodeURIComponent).join('/');
+      
+      // 提取分类（根据所在的文件夹名称）
+      let tag = '未分类';
+      if (file.path.includes('/')) {
+        const parts = file.path.split('/');
+        tag = parts[0]; // 默认取第一级文件夹名作为标签
+      }
+
       return {
         name: fileName.replace(/\.mp3$/i, ''),
         path: file.path,
-        url: baseUrl + encodedPath
+        url: baseUrl + encodedPath,
+        tag: tag
       };
     });
 
-    renderPlaylist();
-    songCount.textContent = `(${songs.length})`;
-    songTitle.textContent = '准备就绪';
-    songArtist.textContent = '点击列表开始播放';
+    // 提取所有唯一标签
+    const tagsSet = new Set(allSongs.map(s => s.tag));
+    allTags = ['全部', ...Array.from(tagsSet)];
+
+    renderTags();
+    filterByTag('全部'); // 默认显示全部
 
   } catch (error) {
     console.error(error);
@@ -339,51 +403,97 @@ async function fetchSongs() {
 }
 
 /* =========================================================
-   4. 渲染播放列表
+   4. 渲染逻辑
    ========================================================= */
+function renderTags() {
+  tagBar.innerHTML = allTags.map(tag => `
+    <button class="tag-btn ${tag === activeTag ? 'active' : ''}" data-tag="${tag}">
+      ${tag}
+    </button>
+  `).join('');
+}
+
 function renderPlaylist() {
-  playlistEl.innerHTML = songs.map((song, index) => `
-    <li class="track-item" data-index="${index}">
+  if (currentQueue.length === 0) {
+    playlistEl.innerHTML = '<li class="status-msg">该分类下暂无歌曲</li>';
+    songCount.textContent = `(0)`;
+    return;
+  }
+
+  playlistEl.innerHTML = currentQueue.map((song, index) => `
+    <li class="track-item ${index === currentIndex ? 'active' : ''}" data-index="${index}">
       <div class="track-icon">MP3</div>
       <div class="track-info">
         <div class="track-name">${song.name}</div>
-        <div class="track-path">${song.path}</div>
+        <div class="track-path">${song.tag} · ${song.path}</div>
       </div>
       <div class="playing-indicator"><i></i><i></i><i></i></div>
+      <!-- 下载按钮 -->
+      <a href="${song.url}" download="${song.name}.mp3" class="download-btn" title="下载歌曲" onclick="event.stopPropagation()">⬇</a>
     </li>
   `).join('');
+  
+  songCount.textContent = `(${currentQueue.length})`;
+}
+
+// 标签筛选
+function filterByTag(tag) {
+  activeTag = tag;
+  
+  // 更新标签按钮 UI
+  document.querySelectorAll('.tag-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tag === tag);
+  });
+
+  // 过滤队列
+  if (tag === '全部') {
+    currentQueue = [...allSongs];
+  } else {
+    currentQueue = allSongs.filter(s => s.tag === tag);
+  }
+
+  // 如果当前正在播放的歌曲属于新队列，保持状态；否则重置播放
+  if (currentIndex !== -1 && isPlaying) {
+    const currentSongUrl = audio.src;
+    const stillInQueue = currentQueue.findIndex(s => s.url === currentSongUrl);
+    if (stillInQueue !== -1) {
+      currentIndex = stillInQueue; // 更新在新队列中的索引
+    } else {
+      // 切歌或暂停
+      audio.pause();
+      currentIndex = -1;
+      songTitle.textContent = '已切换分类';
+      songArtist.textContent = '请重新选择歌曲';
+    }
+  } else {
+    currentIndex = -1;
+  }
+
+  renderPlaylist();
 }
 
 /* =========================================================
    5. 播放核心逻辑
    ========================================================= */
 function loadSong(index, autoPlay = true) {
-  if (index < 0 || index >= songs.length) return;
+  if (index < 0 || index >= currentQueue.length) return;
   currentIndex = index;
-  const song = songs[index];
+  const song = currentQueue[index];
 
   songTitle.textContent = song.name;
   songArtist.textContent = song.path;
   document.title = `${song.name} - 音乐播放器`;
 
-  // 更新列表高亮
-  document.querySelectorAll('.track-item').forEach(el => el.classList.remove('active'));
-  const activeItem = document.querySelector(`.track-item[data-index="${index}"]`);
-  if (activeItem) {
-    activeItem.classList.add('active');
-    // 平滑滚动到当前项
-    activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
+  renderPlaylist();
 
-  // 切换音源
   audio.src = song.url;
   
-  // 更新系统后台媒体控制信息 (Media Session API)
+  // 更新系统后台媒体控制信息
   if ('mediaSession' in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: song.name,
-      artist: 'GitHub 音乐仓库',
-      album: '我的收藏'
+      artist: `分类: ${song.tag}`,
+      album: 'GitHub 音乐仓库'
     });
     navigator.mediaSession.setActionHandler('play', playAudio);
     navigator.mediaSession.setActionHandler('pause', pauseAudio);
@@ -393,7 +503,7 @@ function loadSong(index, autoPlay = true) {
 
   if (autoPlay) {
     audio.play().catch(err => {
-      console.warn('自动播放被拦截，请手动点击播放', err);
+      console.warn('播放失败:', err);
       isPlaying = false;
       updatePlayBtnUI();
     });
@@ -401,7 +511,7 @@ function loadSong(index, autoPlay = true) {
 }
 
 function playAudio() {
-  if (currentIndex === -1 && songs.length > 0) {
+  if (currentIndex === -1 && currentQueue.length > 0) {
     loadSong(isShuffle ? getRandomIndex() : 0);
   } else {
     audio.play();
@@ -421,37 +531,35 @@ function updatePlayBtnUI() {
   }
 }
 
-/* 计算下一首的索引 */
+/* 计算下一首索引（只在当前队列内） */
 function getNextIndex() {
-  if (songs.length === 0) return -1;
-  if (songs.length === 1) return 0;
+  if (currentQueue.length === 0) return -1;
+  if (currentQueue.length === 1) return 0;
 
   if (isShuffle) return getRandomIndex();
 
-  // 顺序模式
-  if (currentIndex === songs.length - 1) {
-    if (repeatMode === 'off') return -1; // 单次播放结束
-    return 0; // 回到第一首
+  if (currentIndex === currentQueue.length - 1) {
+    if (repeatMode === 'off') return -1;
+    return 0;
   }
   return currentIndex + 1;
 }
 
 function getRandomIndex() {
-  if (songs.length <= 1) return 0;
+  if (currentQueue.length <= 1) return 0;
   let newIndex;
   do {
-    newIndex = Math.floor(Math.random() * songs.length);
+    newIndex = Math.floor(Math.random() * currentQueue.length);
   } while (newIndex === currentIndex);
   return newIndex;
 }
 
 function handleNextPrev(direction) {
-  if (songs.length === 0) return;
+  if (currentQueue.length === 0) return;
   
   if (direction === 'next') {
     const nextIdx = getNextIndex();
     if (nextIdx === -1) {
-      // 停止播放
       audio.pause();
       audio.currentTime = 0;
       isPlaying = false;
@@ -460,13 +568,12 @@ function handleNextPrev(direction) {
       loadSong(nextIdx);
     }
   } else {
-    // 上一首
     let prevIdx;
     if (isShuffle) {
       prevIdx = getRandomIndex();
     } else {
       prevIdx = currentIndex - 1;
-      if (prevIdx < 0) prevIdx = songs.length - 1;
+      if (prevIdx < 0) prevIdx = currentQueue.length - 1;
     }
     loadSong(prevIdx);
   }
@@ -475,6 +582,12 @@ function handleNextPrev(direction) {
 /* =========================================================
    6. 事件监听与 UI 绑定
    ========================================================= */
+// 标签点击
+tagBar.addEventListener('click', (e) => {
+  const btn = e.target.closest('.tag-btn');
+  if (btn) filterByTag(btn.dataset.tag);
+});
+
 // 列表点击
 playlistEl.addEventListener('click', (e) => {
   const li = e.target.closest('.track-item');
@@ -482,26 +595,22 @@ playlistEl.addEventListener('click', (e) => {
   const index = parseInt(li.dataset.index);
   
   if (index === currentIndex) {
-    // 点击当前歌曲，切换播放/暂停
     if (isPlaying) pauseAudio();
     else playAudio();
   } else {
-    // 播放新歌曲
     loadSong(index);
   }
 });
 
-// 播放/暂停按钮
+// 按钮事件
 playBtn.addEventListener('click', () => {
   if (isPlaying) pauseAudio();
   else playAudio();
 });
 
-// 上一首/下一首
 prevBtn.addEventListener('click', () => handleNextPrev('prev'));
 nextBtn.addEventListener('click', () => handleNextPrev('next'));
 
-// 切换播放模式
 modeBtn.addEventListener('click', () => {
   if (repeatMode === 'all') {
     repeatMode = 'one';
@@ -521,7 +630,6 @@ modeBtn.addEventListener('click', () => {
   }
 });
 
-// 切换随机模式
 shuffleBtn.addEventListener('click', () => {
   isShuffle = !isShuffle;
   shuffleBtn.classList.toggle('active', isShuffle);
@@ -537,7 +645,6 @@ audio.addEventListener('pause', () => {
   updatePlayBtnUI();
 });
 
-// 自动播放下一首（处理单曲循环和结束逻辑）
 audio.addEventListener('ended', () => {
   if (repeatMode === 'one') {
     audio.currentTime = 0;
@@ -545,7 +652,6 @@ audio.addEventListener('ended', () => {
   } else {
     const nextIdx = getNextIndex();
     if (nextIdx === -1) {
-      // 单次播放结束
       isPlaying = false;
       updatePlayBtnUI();
       audio.currentTime = 0;
@@ -555,7 +661,6 @@ audio.addEventListener('ended', () => {
   }
 });
 
-// 进度条更新
 audio.addEventListener('timeupdate', () => {
   if (!audio.duration) return;
   const p = audio.currentTime / audio.duration;
@@ -569,7 +674,6 @@ audio.addEventListener('loadedmetadata', () => {
   progress.disabled = false;
 });
 
-// 拖拽进度条
 progress.addEventListener('input', () => {
   if (audio.duration) {
     const p = progress.value / 1000;
@@ -578,14 +682,12 @@ progress.addEventListener('input', () => {
   }
 });
 
-// 播放出错处理
 audio.addEventListener('error', () => {
   if (currentIndex >= 0) {
-    alert(`无法播放：${songs[currentIndex].name}\n可能文件不存在或格式不支持。`);
+    alert(`无法播放：${currentQueue[currentIndex].name}\n可能文件不存在或格式不支持。`);
   }
 });
 
-// 格式化时间
 function fmtTime(sec) {
   if (!isFinite(sec) || sec < 0) return '0:00';
   const m = Math.floor(sec / 60);
