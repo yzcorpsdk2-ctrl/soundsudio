@@ -245,9 +245,9 @@ const CONFIG = {
   repo:  'soundsudio',       
   branch:'main',             
   dir:   '',                 
-  // 这里直接写死你的音频文件名。如果有多个，用逗号隔开，例如 ['JVKE-her.mp3', 'song2.mp3']
+  // 这里已经将文件名改为了双后缀的格式
   manualFiles: [
-    'JVKE-her.mp3' 
+    'JVKE-her.mp3.mp3' 
   ]            
 };
 
@@ -322,11 +322,13 @@ function setStatus(msg, isError){
    ========================================================= */
 function makeTrack(path, url){
   const fileName = path.split('/').pop();
+  // 优化：如果名字是 xx.mp3.mp3，展示时去掉多余的 .mp3
+  const displayName = fileName.replace(/(\.mp3)+$/i, '');
   const ext = (fileName.match(/\.([^.]+)$/) || [,''])[1];
   return {
     path,
     url,
-    name: fileName.replace(/\.[^.]+$/, ''),
+    name: displayName || fileName,
     ext: ext ? ext.toUpperCase() : '♪'
   };
 }
@@ -336,7 +338,6 @@ async function collectFiles(){
     throw new Error('请在代码的 CONFIG.manualFiles 中填写音频文件名');
   }
   
-  // 获取当前页面的基础路径 (例如 https://xxx.github.io/soundsudio/)
   let baseUrl = location.href;
   if (baseUrl.endsWith('index.html')) {
       baseUrl = baseUrl.replace('index.html', '');
@@ -565,7 +566,7 @@ audio.addEventListener('ended', () => {
 audio.addEventListener('error', () => {
   if (state.index < 0) return;
   const f = state.files[state.index];
-  setStatus(`无法播放「${f.name}」：请检查文件名拼写是否和仓库中完全一致`, true);
+  setStatus(`无法播放「${f.name}」：请检查文件是否完整`, true);
 });
 
 /* 键盘快捷键 */
