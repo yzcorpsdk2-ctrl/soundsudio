@@ -238,14 +238,17 @@
 
 <script>
 /* =========================================================
-   ① 配置区（已为你填好）
+   ① 配置区（已开启手动列表，跳过 API 请求）
    ========================================================= */
 const CONFIG = {
-  owner: 'yzcorpsdk2-ctrl',  // 你的 GitHub 用户名
-  repo:  'soundsudio',       // 你的仓库名
-  branch:'main',             // 你的默认分支
-  dir:   '',                 // 扫描整个仓库
-  manualFiles: []            // 自动扫描即可，无需手动
+  owner: 'yzcorpsdk2-ctrl',  
+  repo:  'soundsudio',       
+  branch:'main',             
+  dir:   '',                 
+  // 这里直接写死你的音频文件名。如果有多个，用逗号隔开，例如 ['JVKE-her.mp3', 'song2.mp3']
+  manualFiles: [
+    'JVKE-her.mp3' 
+  ]            
 };
 
 /* =========================================================
@@ -315,76 +318,7 @@ function setStatus(msg, isError){
 }
 
 /* =========================================================
-   ③ GitHub API
-   ========================================================= */
-const apiCache = new Map();
-
-async function ghApi(path){
-  if (apiCache.has(path)) return apiCache.get(path);
-  const promise = fetch('https://api.github.com/' + path, {
-    headers: { 'Accept': 'application/vnd.github+json' }
-  }).then(async res => {
-    if (!res.ok){
-      if (res.status === 403) throw new Error('GitHub API 访问次数超限，请稍后刷新');
-      if (res.status === 404) throw new Error('仓库或路径不存在（请确认仓库是公开的）');
-      throw new Error('GitHub API 错误 ' + res.status);
-    }
-    return res.json();
-  }).catch(err => { apiCache.delete(path); throw err; });
-
-  apiCache.set(path, promise);
-  return promise;
-}
-
-function pagesBase(owner, repo){
-  return (repo.toLowerCase() === (owner + '.github.io').toLowerCase()) ? '/' : `/${repo}/`;
-}
-
-async function resolveRepo(){
-  // 1. 用户手动配置优先
-  if (CONFIG.owner && CONFIG.repo){
-    const info = await ghApi(`repos/${CONFIG.owner}/${CONFIG.repo}`);
-    return {
-      owner: CONFIG.owner,
-      repo: CONFIG.repo,
-      branch: CONFIG.branch || info.default_branch,
-      basePath: pagesBase(CONFIG.owner, CONFIG.repo)
-    };
-  }
-
-  // 2. 从 GitHub Pages 域名自动识别
-  const host = location.hostname;
-  if (!host.endsWith('.github.io')){
-    throw new Error('当前页面不是在 GitHub Pages 上打开的，无法自动识别仓库。请在 HTML 顶部 CONFIG 中填写 owner / repo');
-  }
-
-  const owner = host.slice(0, -'.github.io'.length);
-  const segs = location.pathname.split('/').filter(Boolean);
-
-  // 2a. 项目主页：https://user.github.io/repo/...
-  if (segs.length){
-    try{
-      const info = await ghApi(`repos/${owner}/${segs[0]}`);
-      return {
-        owner, repo: segs[0],
-        branch: CONFIG.branch || info.default_branch,
-        basePath: `/${segs[0]}/`
-      };
-    }catch(_){ /* 不是仓库名，继续 */ }
-  }
-
-  // 2b. 用户主页仓库：user.github.io
-  const rootRepo = owner + '.github.io';
-  const info = await ghApi(`repos/${owner}/${rootRepo}`);
-  return {
-    owner, repo: rootRepo,
-    branch: CONFIG.branch || info.default_branch,
-    basePath: '/'
-  };
-}
-
-/* =========================================================
-   ④ 收集音频文件
+   ③ 收集音频文件 (完全跳过 GitHub API)
    ========================================================= */
 function makeTrack(path, url){
   const fileName = path.split('/').pop();
@@ -398,36 +332,25 @@ function makeTrack(path, url){
 }
 
 async function collectFiles(){
-  // 手动列表模式
-  if (CONFIG.manualFiles && CONFIG.manualFiles.length){
-    return CONFIG.manualFiles
-      .filter(isAudioPath)
-      .map(p => makeTrack(p, new URL(encodePath(p), location.href).href));
+  if (!CONFIG.manualFiles || !CONFIG.manualFiles.length){
+    throw new Error('请在代码的 CONFIG.manualFiles 中填写音频文件名');
+  }
+  
+  // 获取当前页面的基础路径 (例如 https://xxx.github.io/soundsudio/)
+  let baseUrl = location.href;
+  if (baseUrl.endsWith('index.html')) {
+      baseUrl = baseUrl.replace('index.html', '');
+  } else if (!baseUrl.endsWith('/')) {
+      baseUrl += '/';
   }
 
-  const info = await resolveRepo();
-  const data = await ghApi(
-    `repos/${info.owner}/${info.repo}/git/trees/${encodeURIComponent(info.branch)}?recursive=1`
-  );
-
-  if (data.truncated) console.warn('仓库文件过多，列表可能不完整');
-
-  let items = (data.tree || []).filter(n => n.type === 'blob' && isAudioPath(n.path));
-
-  if (CONFIG.dir){
-    const d = CONFIG.dir.replace(/^\/+|\/+$/g, '');
-    items = items.filter(n => n.path.startsWith(d + '/'));
-  }
-
-  if (!items.length) throw new Error('仓库中没有找到音频文件，请上传 mp3 / mp4 / wav 等文件后刷新');
-
-  return items
-    .sort((a, b) => a.path.localeCompare(b.path, 'zh-CN'))
-    .map(n => makeTrack(n.path, info.basePath + encodePath(n.path)));
+  return CONFIG.manualFiles
+    .filter(isAudioPath)
+    .map(p => makeTrack(p, new URL(encodePath(p), baseUrl).href));
 }
 
 /* =========================================================
-   ⑤ 渲染
+   ④ 渲染
    ========================================================= */
 function renderList(){
   const q = elSearch.value.trim().toLowerCase();
@@ -468,7 +391,7 @@ function updateNowPlaying(f){
 }
 
 /* =========================================================
-   ⑥ 播放控制
+   ⑤ 播放控制
    ========================================================= */
 function playIndex(i){
   if (i < 0 || i >= state.files.length) return;
@@ -546,7 +469,7 @@ function syncRepeatUI(){
 }
 
 /* =========================================================
-   ⑦ 事件绑定
+   ⑥ 事件绑定
    ========================================================= */
 elList.addEventListener('click', e => {
   const li = e.target.closest('.track');
@@ -642,7 +565,7 @@ audio.addEventListener('ended', () => {
 audio.addEventListener('error', () => {
   if (state.index < 0) return;
   const f = state.files[state.index];
-  setStatus(`无法播放「${f.name}」：浏览器可能不支持该格式，或文件路径有误`, true);
+  setStatus(`无法播放「${f.name}」：请检查文件名拼写是否和仓库中完全一致`, true);
 });
 
 /* 键盘快捷键 */
@@ -656,7 +579,7 @@ document.addEventListener('keydown', e => {
 });
 
 /* =========================================================
-   ⑧ 启动
+   ⑦ 启动
    ========================================================= */
 (async function init(){
   // 恢复音量
@@ -669,7 +592,7 @@ document.addEventListener('keydown', e => {
   syncRepeatUI();
   updatePlayBtn();
 
-  setStatus('正在读取仓库中的音频文件…');
+  setStatus('正在加载音频列表…');
 
   try{
     const files = await collectFiles();
